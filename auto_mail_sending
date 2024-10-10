@@ -1,0 +1,65 @@
+Sub mail_gonder()
+'
+' RaporlaMailGonder Makro
+'
+' Klavye Kısayolu: Ctrl+q
+'
+Dim GidecekKisi As String
+Dim CC As String
+Dim Kriter As String
+Dim Satıcı As String
+Satir_Sayisi = Application.WorksheetFunction.CountA(Range("Q:Q"))
+For i = 2 To Satir_Sayisi
+Kriter = Cells(i, 17)
+Satıcı = Cells(i, 19)
+GidecekKisi = Cells(i, 18)
+CC = Cells(i, 22)
+Range("A1").Select
+Selection.AutoFilter
+ActiveSheet.Range("$A$1:$N$50000").AutoFilter Field:=2, Criteria1:=Kriter
+Selection.CurrentRegion.Select
+Selection.Copy
+Workbooks.Add
+ActiveSheet.Paste
+Columns("A:O").Select
+Columns("A:O").EntireColumn.AutoFit
+Range("K8").Select
+Application.CutCopyMode = False
+DosyaYolu = "\\9400fs\RDSFolderRedirection$\mustafa.caliskan\Desktop"
+ActiveWorkbook.SaveAs Filename:=Kriter & ".xlsx"
+ActiveWorkbook.Close
+Selection.AutoFilter
+Range("L8").Select
+
+Rapor_Mail_Gonderme Kriter, GidecekKisi, Satıcı, CC
+
+Next i
+
+End Sub
+
+Sub Rapor_Mail_Gonderme(xKriter As String, xGidecekKisi As String, xSatıcı As String, xCC As String)
+'Gozetmen = Range("P9")
+Dim OutApp As Object
+Dim OutMail As Object
+Set OutApp = CreateObject("Outlook.Application")
+Set OutMail = OutApp.CreateItem(0)
+On Error Resume Next
+With OutMail
+.To = xGidecekKisi
+.CC = xCC
+.BCC = Gozetmen
+.Subject = " Bakiye Bilgi hk. - " & xSatıcı
+.Body = Cells(2, 21)
+'.Attachments.Add ActiveWorkbook.FullName
+DosyaYolu = "\\9400fs\RDSFolderRedirection$\mustafa.caliskan\Desktop"
+
+.Attachments.Add (xKriter & ".xlsx")
+ 
+.Display 'or .Send
+End With
+On Error GoTo 0
+Set OutMail = Nothing
+Set OutApp = Nothing
+
+
+End Sub
