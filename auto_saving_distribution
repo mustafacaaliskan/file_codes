@@ -1,0 +1,121 @@
+Sub DagilimiDisaAktar()
+    Dim wsSource As Worksheet
+    Dim wsDest As Worksheet
+    Dim wsDest2 As Worksheet
+    Dim newWorkbook As Workbook
+    Dim destWorkbook As Workbook
+    Dim fileName As String
+    Dim depoName As String
+    Dim todayDate As String
+    Dim destFilePath As String
+    Dim lastRow As Long
+    Dim lastRow2 As Long
+
+    ' Kaynak sayfayı ayarla (aktif sayfa varsayım)
+    Set wsSource = ActiveSheet
+
+    ' Bugünün tarihini dd.mm.yyyy formatında al
+    todayDate = Format(Date, "dd.mm.yyyy")
+
+    ' Kaynak dosyadan B2 ve Q2 hücrelerini al
+    fileName = wsSource.Range("B2").Value
+    depoName = wsSource.Range("Q2").Value
+
+    ' Dosya yolunu oluştur
+    destFilePath = "\\9400fs\Ortak\LB\Tedarik_Zinciri\Donuk Operasyonu\DAĞILIM VERİLERİ\Dağılımlar\" & todayDate & " Dağılım" & ".xlsx"
+
+    ' Dosya zaten varsa kontrol et
+    If Dir(destFilePath) <> "" Then
+        ' Var olan dosyayı aç
+        Set destWorkbook = Workbooks.Open(destFilePath)
+        Set wsDest = destWorkbook.Sheets(1)
+
+        ' A sütununda son dolu satırı bul
+        lastRow = wsDest.Cells(wsDest.Rows.Count, "A").End(xlUp).Row + 1
+
+        ' Verileri kopyala ve yapıştır
+        wsSource.Range("Q2:Q" & wsSource.Cells(wsSource.Rows.Count, "Q").End(xlUp).Row).Copy
+        wsDest.Cells(lastRow, "A").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Range("A2:A" & wsSource.Cells(wsSource.Rows.Count, "A").End(xlUp).Row).Copy
+        wsDest.Cells(lastRow, "B").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Range("B2:B" & wsSource.Cells(wsSource.Rows.Count, "B").End(xlUp).Row).Copy
+        wsDest.Cells(lastRow, "C").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Range("M2:M" & wsSource.Cells(wsSource.Rows.Count, "M").End(xlUp).Row).Copy
+        wsDest.Cells(lastRow, "E").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Range("P2:P" & wsSource.Cells(wsSource.Rows.Count, "P").End(xlUp).Row).Copy
+        wsDest.Cells(lastRow, "G").PasteSpecial Paste:=xlPasteValuesAndNumberFormats
+        
+        wsSource.Range("O2:O" & wsSource.Cells(wsSource.Rows.Count, "O").End(xlUp).Row).Copy
+        wsDest.Cells(lastRow, "H").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Range("L2:L" & wsSource.Cells(wsSource.Rows.Count, "L").End(xlUp).Row).Copy
+        wsDest.Cells(lastRow, "D").PasteSpecial Paste:=xlPasteValues
+        
+
+        ' Çalışma kitabını kaydet ve kapat
+        destWorkbook.Save
+        destWorkbook.Close
+
+    Else
+        ' Yeni bir dosya oluştur
+        Set newWorkbook = Workbooks.Add
+        Set wsDest = newWorkbook.Sheets(1)
+
+        ' Verileri kopyala ve yapıştır
+        wsSource.Columns("Q").Copy
+        wsDest.Columns("A").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Columns("A").Copy
+        wsDest.Columns("B").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Columns("B").Copy
+        wsDest.Columns("C").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Columns("M").Copy
+        wsDest.Columns("E").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Columns("P").Copy
+        wsDest.Columns("G").PasteSpecial Paste:=xlPasteValuesAndNumberFormats
+        
+        wsSource.Columns("O").Copy
+        wsDest.Columns("H").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Columns("L").Copy
+        wsDest.Columns("D").PasteSpecial Paste:=xlPasteValues
+
+        ' Yeni dosyayı kaydet
+        newWorkbook.SaveAs destFilePath
+        newWorkbook.Close
+
+    End If
+    
+    Set wsDest2 = Worksheets("Aktarıldı")
+    lastRow2 = wsDest2.Cells(wsDest2.Rows.Count, "A").End(xlUp).Row + 1
+    
+    ' Tüm sütunları ikinci sayfaya kaydet
+    wsSource.Range("A1:J" & wsSource.Cells(wsSource.Rows.Count, "A").End(xlUp).Row).Copy
+    wsDest2.Cells(lastRow2, "A").PasteSpecial Paste:=xlPasteValues
+    wsDest2.Cells(lastRow2, "A").PasteSpecial Paste:=xlPasteFormats
+        
+    wsSource.Range("K1:N" & wsSource.Cells(wsSource.Rows.Count, "A").End(xlUp).Row).Copy
+    wsDest2.Cells(lastRow2, "K").PasteSpecial Paste:=xlPasteAll
+        
+    wsSource.Range("O1:R" & wsSource.Cells(wsSource.Rows.Count, "A").End(xlUp).Row).Copy
+    wsDest2.Cells(lastRow2, "O").PasteSpecial Paste:=xlPasteValuesAndNumberFormats
+    wsDest2.Cells(lastRow2, "O").PasteSpecial Paste:=xlPasteFormats
+        
+    wsSource.Range("U1:U2").Copy
+    wsDest2.Cells(lastRow2, "S").PasteSpecial Paste:=xlPasteValues
+    wsDest2.Cells(lastRow2, "S").PasteSpecial Paste:=xlPasteFormats
+
+
+
+    ' Panoyu temizle
+    Application.CutCopyMode = False
+
+
+End Sub
