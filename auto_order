@@ -1,0 +1,224 @@
+Sub OtomatikSiparisVerme()
+    Dim ws As Worksheet
+    Dim targetWs As Worksheet
+    Dim sonSatir As Long
+    Dim i As Long
+    Dim guncelStok As Double
+    Dim frekansDegeri As Double
+    Dim artisMiktari As Double
+    Dim hedefStok As Double
+    Dim oncekiStok As Double
+    Dim gecmisFark As Double
+    Dim guncelFark As Double
+    Dim siparisTuru As Variant
+    Dim targetValues As Variant
+    Dim targetFile As String
+    Dim targetWorkbook As Workbook
+    Dim dayOfWeek As Integer
+    Dim targetColumn As String
+    Dim saticiKodu As Variant
+    Dim siparisSagArray As Variant
+    Dim crossDock As Boolean
+    Dim frekansDegerleri As Object, ArtisMiktarlari As Object, siparisTurleri As Object
+    Dim buffer9402 As Object, buffer9403 As Object, buffer9404 As Object, buffer9412 As Object, buffer9411 As Object, buffer9490 As Object
+    Dim key As Variant, bufferMiktari As Double
+    
+    siparisSagArray = Array("F05") 'Siapriş verilecek sag gruplarını yazın
+    crossDock = True 'True girerseniz crossdock dahil tüm hepsine sipariş verir, False girerseniz crossDock olanlara sipariş girmez
+
+    ' Aktif çalışma sayfasını ayarla
+    Set ws = ActiveSheet
+
+    ' Sözlükleri oluştur
+    Set frekansDegerleri = CreateObject("Scripting.Dictionary")
+    Set ArtisMiktarlari = CreateObject("Scripting.Dictionary")
+    Set siparisTurleri = CreateObject("Scripting.Dictionary")
+    Set buffer9402 = CreateObject("Scripting.Dictionary")
+    Set buffer9403 = CreateObject("Scripting.Dictionary")
+    Set buffer9404 = CreateObject("Scripting.Dictionary")
+    Set buffer9412 = CreateObject("Scripting.Dictionary")
+    Set buffer9411 = CreateObject("Scripting.Dictionary")
+    Set buffer9490 = CreateObject("Scripting.Dictionary")
+
+    ' Kullanıcıdan hedef dosyayı seçmesini iste
+    targetFile = Application.GetOpenFilename("Excel Files (*.xls; *.xlsx), *.xls; *.xlsx", , "Select the Target File")
+    If targetFile = "False" Then
+        MsgBox "No file selected. Exiting macro."
+        Exit Sub
+    End If
+
+    ' Seçilen çalışma kitabını aç
+    Set targetWorkbook = Workbooks.Open(targetFile)
+    Set targetWs = targetWorkbook.Sheets(1) ' Değerlerin ilk sayfada olduğunu varsayalım
+
+    ' Haftanın gününü belirle
+    dayOfWeek = Weekday(Date, vbMonday)
+
+    ' Haftanın gününe göre uygun sütunu seç
+    Select Case dayOfWeek
+        Case 1: targetColumn = "A" ' Pazartesi
+        Case 2: targetColumn = "C" ' Salı
+        Case 3: targetColumn = "E" ' Çarşamba
+        Case 4: targetColumn = "G" ' Perşembe
+        Case 5: targetColumn = "I" ' Cuma
+        Case 6: targetColumn = "K" ' Cumartesi
+        Case 7: targetColumn = "M" ' Pazar
+    End Select
+
+    ' Seçilen sütundaki değerleri bir diziye oku (başlık hariç)
+    With targetWs
+        sonSatir = .Cells(.Rows.count, targetColumn).End(xlUp).Row
+        targetValues = .Range(targetColumn & "2:" & targetColumn & sonSatir).value
+    End With
+
+    ' Sözlükleri seçilen dosyadan doldur
+    With targetWs
+        sonSatir = .Cells(.Rows.count, "P").End(xlUp).Row
+        For i = 2 To sonSatir
+            If Not IsEmpty(.Cells(i, "P").value) Then
+                key = .Cells(i, "P").value
+                If Not IsEmpty(.Cells(i, "R").value) Then frekansDegerleri(key) = .Cells(i, "R").value
+                If Not IsEmpty(.Cells(i, "S").value) Then ArtisMiktarlari(key) = .Cells(i, "S").value
+                If Not IsEmpty(.Cells(i, "T").value) Then siparisTurleri(key) = .Cells(i, "T").value
+                If Not IsEmpty(.Cells(i, "U").value) Then buffer9402(key) = .Cells(i, "U").value
+                If Not IsEmpty(.Cells(i, "V").value) Then buffer9403(key) = .Cells(i, "V").value
+                If Not IsEmpty(.Cells(i, "W").value) Then buffer9404(key) = .Cells(i, "W").value
+                If Not IsEmpty(.Cells(i, "X").value) Then buffer9412(key) = .Cells(i, "X").value
+                If Not IsEmpty(.Cells(i, "Y").value) Then buffer9411(key) = .Cells(i, "Y").value
+                If Not IsEmpty(.Cells(i, "Z").value) Then buffer9490(key) = .Cells(i, "Z").value
+            End If
+        Next i
+    End With
+
+    ' Hedef çalışma kitabını kapat
+    targetWorkbook.Close False
+
+    ' E sütunundaki son dolu satırı bul
+    sonSatir = ws.Cells(ws.Rows.count, "E").End(xlUp).Row
+
+    ' Üçüncü satırdan itibaren her satırda döngü yap
+    For i = 3 To sonSatir
+        crossDock = IIf(ws.Cells(i, "AJ").value = "X" And crossDock = False, False, True)
+        saticiKodu = ws.Cells(i, "C").value
+        ' AI sütununun boş olup olmadığını kontrol et (Depo Blokaj)
+        If Trim(ws.Cells(i, "AI").value) = "" Then
+            ' C sütunundaki değerin targetValues dizisinde olup olmadığını kontrol et (Satıcı kodu istediğimiz gün sütununda mı)
+            If IsInArray(saticiKodu, targetValues) And crossDock Then
+                ' G sütunundaki hücrenin sag grubunda olup olmadığını kontrol et ve palet katı olmayanlara girme
+                If IsInArray(ws.Cells(i, "G").value, siparisSagArray) And ws.Cells(i, "Z").value <> 0 Then
+                    'Depo stoğu 5'ten küçükse yeşile boyar
+                    If ws.Cells(i, "AA").value <= 5 Then
+                        ws.Cells(i, "AA").Interior.Color = RGB(4, 200, 0)  ' Yeşil renk (RGB)
+                    End If
+                    ' M sütununun hata içerip içermediğini veya geçerli bir yüzde olup olmadığını kontrol et
+                    If Not IsError(ws.Cells(i, "M").value) And IsValidPercentage(ws.Cells(i, "M").value) Then
+                        ' %50 üzerinde artış veya azalış varsa yeşile boyar
+                        If (ws.Cells(i, "M").value > 0.5 Or ws.Cells(i, "M").value < -0.5) Then
+                            ws.Cells(i, "M").Interior.Color = RGB(4, 200, 0)  ' Yeşil renk (RGB)
+                        End If
+                    End If
+                    ' BH sütunundaki hücrenin boş olup olmadığını kontrol et (Deneme ürününe vermiyoruz manuel bakılacak)
+                    If Trim(ws.Cells(i, "BH").value) <> "" Then
+                        ' Y sütunundaki hücreyi sarıya boya (Denemeleri sarıya boyuyor)
+                        ws.Cells(i, "Y").Interior.Color = RGB(255, 255, 0) ' Sarı renk (RGB)
+                    Else
+                        ' V sütunundaki stok gün değerinin bir sayı olup olmadığını, -50'de büyük olup olmadığını ve ortalama satışın 0'dan büyük olup olmadığını kontrol et (STK/STŞ vs ise almıyor)
+                        If IsNumeric(ws.Cells(i, "V").value) And (ws.Cells(i, "V").value > (-50)) And (ws.Cells(i, "J").value > 0) Then
+                            ' Geçerli satırdaki V sütunundaki başlangıç değerini oku (Güncel stok gün miktarını alıp 1 1 artırıyoruz)
+                            guncelStok = ws.Cells(i, "V").value
+
+                            ' Depo koduna göre frekans dosyasından buffer değerlerini alıyoruz
+                            Select Case ws.Cells(i, "A").value
+                                Case 9402: bufferMiktari = IIf(buffer9402.exists(saticiKodu), buffer9402(saticiKodu), 0)
+                                Case 9403: bufferMiktari = IIf(buffer9403.exists(saticiKodu), buffer9403(saticiKodu), 0)
+                                Case 9404: bufferMiktari = IIf(buffer9404.exists(saticiKodu), buffer9404(saticiKodu), 0)
+                                Case 9412: bufferMiktari = IIf(buffer9412.exists(saticiKodu), buffer9412(saticiKodu), 0)
+                                Case 9411: bufferMiktari = IIf(buffer9411.exists(saticiKodu), buffer9411(saticiKodu), 0)
+                                Case 9490: bufferMiktari = IIf(buffer9490.exists(saticiKodu), buffer9490(saticiKodu), 0)
+                                Case Else: bufferMiktari = 0
+                            End Select
+                            
+                            ' Frekans dosyasından frekans, artış miktarı ve artış türünü alıyoruz (7 günde 1 sipariş, 1 palet 1 palet artır gibi)
+                            frekansDegeri = IIf(frekansDegerleri.exists(saticiKodu), frekansDegerleri(saticiKodu), 7)
+                            artisMiktari = IIf(ArtisMiktarlari.exists(saticiKodu), ArtisMiktarlari(saticiKodu), 1)
+                            siparisTuru = IIf(siparisTurleri.exists(saticiKodu), siparisTurleri(saticiKodu), "PALET")
+                            hedefStok = ws.Cells(i, "AN").value + frekansDegeri + bufferMiktari
+
+                            ' Palet ya da koli bazında artırarak güncel stok gününü hedef stok gününe çıkarıyoruz
+                            Do While guncelStok <= (hedefStok)
+                                If siparisTuru = "PALET" Then
+                                    ws.Cells(i, "Y").value = ws.Cells(i, "Y").value + artisMiktari
+                                ElseIf siparisTuru = "KOL" Then
+                                    ws.Cells(i, "W").value = ws.Cells(i, "W").value + artisMiktari
+                                End If
+
+
+                                guncelStok = ws.Cells(i, "V").value
+
+                                ' güncel stok hedef stoktan büyükse bir önceki değerle karşılaştırarak kontrol eder, eğer bir önceki değere dönmek mantıklı ise bir öncekine döner
+                                If guncelStok > hedefStok Then
+                                    If siparisTuru = "PALET" Then
+                                        ws.Cells(i, "Y").value = ws.Cells(i, "Y").value - artisMiktari
+                                        ws.Cells(i, "Y").Interior.Color = RGB(139, 128, 0)
+                                    ElseIf siparisTuru = "KOL" Then
+                                        ws.Cells(i, "W").value = ws.Cells(i, "W").value - artisMiktari
+                                        ws.Cells(i, "Y").Interior.Color = RGB(139, 128, 0)
+                                    End If
+                                    
+                                    oncekiStok = ws.Cells(i, "V").value
+                                    gecmisFark = hedefStok - oncekiStok
+                                    guncelFark = guncelStok - hedefStok
+                                    
+                                    ' hedef stok ve bir önceki stok arasındaki fark hedef stoğun %7'sinden fazla ise veya sonraki stokla fark %23'ten az ise veya gecmis fark bufferın %70'inden fazlaysa önceki değeri almaz, normal değeri alır
+                                    If gecmisFark > hedefStok * 0.07 Or guncelFark < hedefStok * 0.23 Or bufferMiktari * 0.7 < gecmisFark Then
+                                        If siparisTuru = "PALET" Then
+                                            ws.Cells(i, "Y").value = ws.Cells(i, "Y").value + artisMiktari
+                                            ws.Cells(i, "Y").Interior.Color = RGB(255, 255, 255)
+                                        ElseIf siparisTuru = "KOL" Then
+                                            ws.Cells(i, "W").value = ws.Cells(i, "W").value + artisMiktari
+                                            ws.Cells(i, "Y").Interior.Color = RGB(255, 255, 255)
+                                        End If
+                                        ' Eğer 1 palet eklediğimizde artış çok fazla oluyorsa (%50'sinden fazlaysa) ve tedarik süresi + frekans'tan büyükse tekrar kontrol için sarıya boyanır
+                                        If guncelFark >= hedefStok * 0.5 And oncekiStok > hedefStok - bufferMiktari Then
+                                            ws.Cells(i, "V").Interior.Color = RGB(255, 255, 0)
+                                        End If
+                                    End If
+                                    If oncekiStok < hedefStok - bufferMiktari Then
+                                        ws.Cells(i, "W").Interior.Color = RGB(0, 255, 0)
+                                    End If
+                                    Exit Do
+                                End If
+                            Loop
+                        End If
+                    End If
+                End If
+            End If
+        End If
+    Next i
+End Sub
+
+Function IsInArray(valToFind As Variant, arr As Variant) As Boolean
+    ' valToFind değerinin arr içinde olup olmadığını kontrol eden fonksiyon
+    Dim element As Variant
+    For Each element In arr
+        If element = valToFind Then
+            IsInArray = True
+            Exit Function
+        End If
+    Next element
+    IsInArray = False
+End Function
+
+Function IsValidPercentage(value As Variant) As Boolean
+    ' Değerin geçerli bir yüzde olup olmadığını kontrol eden fonksiyon
+    If IsNumeric(value) Then
+        If value >= 0 And value <= 1 Then
+            IsValidPercentage = True
+        Else
+            IsValidPercentage = False
+        End If
+    Else
+        IsValidPercentage = False
+    End If
+End Function
+
