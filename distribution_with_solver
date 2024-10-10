@@ -1,0 +1,131 @@
+Sub DagılımMakrosu()
+    Dim ws As Worksheet
+    Dim depoName As String
+    Dim productNumber As String
+    Dim saleDay As String
+    Dim filePath As Variant
+    Dim wbSource As Workbook
+    Dim wsSource As Worksheet
+    Dim lastRow As Long
+    Dim cell As Range
+    Dim destLastRow As Long
+    Dim countRow As Double
+    Dim i As Long
+    Dim r2Formula As String
+    Dim koliMiktari As String
+    Dim filterOption As VbMsgBoxResult
+
+    Set ws = ActiveSheet
+    ws.Rows("3:" & ws.Rows.count).Delete
+    ws.Range("A2, B2, F2").ClearContents
+
+    koliMiktari = InputBox("Dağıtmak İstediğiniz Koli Miktarını Girin:")
+    productNumber = InputBox("Dağıtmak İstediğiniz Ürün Artikelini Girin:")
+    saleDay = InputBox("Satış Dosyasını Kaç Günlük Çektiğinizi Girin:")
+    depoName = InputBox("Dağıtmak İstediğiniz Depo Kodunu Girin:")
+
+    filterOption = MsgBox("Sadece dağılıma açık mağazalara dağıtılacak. Onaylıyor musunuz? (Tüm mağazalara dağıtmak için Hayır'a basın)", vbYesNo + vbQuestion, "Filtreleme Seçeneği")
+
+    filePath = "\\9400fs\Ortak\LB\Tedarik_Zinciri\Donuk Operasyonu\DAĞILIM VERİLERİ\Dağılım Mağaza Verileri.xlsx"
+    Set wbSource = Workbooks.Open(filePath)
+    Set wsSource = wbSource.Sheets(1)
+
+    ' Depo adına göre filtreleme
+    wsSource.Range("A1").AutoFilter Field:=1, criteria1:=depoName
+
+    ' Mağazaları filtrele (kullanıcının seçimine göre)
+    If filterOption = vbYes Then
+        wsSource.Range("A1").AutoFilter Field:=14, criteria1:="X"
+    End If
+
+    ' Filtrelenmiş son satırı bul
+    lastRow = wsSource.Cells(wsSource.Rows.count, "B").End(xlUp).Row
+
+    ' Filtrelenmiş verileri kopyala
+    For Each cell In wsSource.Range("B2:B" & lastRow).SpecialCells(xlCellTypeVisible)
+        ws.Range("A" & ws.Cells(ws.Rows.count, "A").End(xlUp).Row + 1).value = cell.value
+    Next cell
+
+    wsSource.AutoFilterMode = False
+    wbSource.Close SaveChanges:=False
+
+    ws.Range("B2").value = productNumber
+    ws.Range("F2").value = saleDay
+
+    destLastRow = ws.Cells(ws.Rows.count, "A").End(xlUp).Row
+    countRow = destLastRow
+
+    ws.Range("B2:Q2").Copy
+    ws.Range("B3:Q" & destLastRow).PasteSpecial Paste:=xlPasteAll
+    Application.CutCopyMode = False
+
+    ' H ve J sütunları sıfırsa L sütununa 1 yaz
+    For i = 2 To destLastRow
+        If ws.Cells(i, "H").value = 0 And ws.Cells(i, "J").value = 0 Then
+            ws.Cells(i, "L").value = 1
+            countRow = countRow - 1
+        End If
+    Next i
+
+    ' L sütununu sırala
+    ws.Sort.SortFields.Clear
+    ws.Sort.SortFields.Add key:=ws.Range("L2:L" & destLastRow), _
+        SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+    With ws.Sort
+        .SetRange ws.Range("A1:P" & destLastRow)
+        .Header = xlYes
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+
+    ' R2 hücresine formül yaz
+    r2Formula = "=STDSAPMA.S(K2:K" & countRow & ")"
+    ws.Range("R2").FormulaLocal = r2Formula
+    
+    ws.Range("T2").value = koliMiktari
+    ws.Calculate
+
+    solverOption = MsgBox("Solver ile devam etmek istiyor musunuz?", vbYesNo + vbQuestion, "Solver Seçeneği")
+
+    If solverOption = vbYes Then
+        Call RunSolver(ws, countRow)
+    End If
+
+End Sub
+
+Sub RunSolver(ws As Worksheet, countRow As Double)
+    Dim targetRange As Range
+
+    ' Solver'da kullanılacak aralığı belirle
+    Set targetRange = ws.Range("L2:L" & countRow)
+    SolverReset
+    
+    ' Hedef hücreyi minimize et (R2)
+    solverOK SetCell:="$R$2", _
+        MaxMinVal:=2, _
+        ByChange:=targetRange.Address, _
+        Engine:=1, _
+        EngineDesc:="GRG Nonlinear"
+    
+    ' Kısıtlama: S2, T2'ye eşit olmalı
+    solverAdd CellRef:="$S$2", _
+        Relation:=2, _
+        FormulaText:="$T$2"
+    
+    ' L2:L&countRow aralığı için tam sayı kısıtlaması ekle
+    solverAdd CellRef:=targetRange.Address, _
+        Relation:=4, _
+        FormulaText:="int"
+    
+    ' Solver problemini çöz
+    SolverSolve UserFinish:=True
+
+    ' Çözüm bulunup bulunmadığını kontrol et
+    If SolverSolve(UserFinish:=True) = True Then
+        MsgBox "Solver bir çözüm buldu."
+    Else
+        MsgBox "Solver bir çözüm bulamadı."
+    End If
+End Sub
