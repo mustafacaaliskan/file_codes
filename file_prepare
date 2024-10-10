@@ -1,0 +1,230 @@
+Sub DosyaHazırlama()
+    Dim ws As Worksheet
+    Dim colAdded As Boolean
+    Dim lastRow As Long
+    Dim i As Long
+    Dim extraFile1 As Variant
+    Dim extraFile2 As Variant
+    Dim extraFile3 As Variant
+    Dim extraWB1 As Workbook
+    Dim extraWB2 As Workbook
+    Dim extraWB3 As Workbook
+    Dim extraWS1 As Worksheet
+    Dim extraWS2 As Worksheet
+    Dim extraWS3 As Worksheet
+    Dim lastRow9402 As Long
+    Dim lastRow9403 As Long
+    Dim lastRow9404 As Long
+    Dim filteredRange As Range
+    Dim colX As Long
+    Dim colY As Long
+    Dim colAdded1 As Boolean
+    Dim colAdded2 As Boolean
+    Dim sagArray As Variant
+    Dim filterSagArray As Variant
+    
+    sagArray = Array("F03", "F05") ' Sipariş dosyasına getirilmek istenen "sag" gruplarını belirtin
+    filterSagArray = Array("F05") ' Dosya hazırlama sonrası gösterilecek "sag" gruplarını yazın
+    
+    ' Aktif çalışma sayfasını seç
+    Set ws = ActiveSheet
+    
+    ' X sütununun numarasını bul
+    colX = ws.Columns("X").Column
+    ' X sütununun sağındaki sütun Y'dir
+    colY = colX + 1
+    
+    ' C veya Z sütunundaki son veri satırını bul
+    lastRow = Application.WorksheetFunction.Max(ws.Cells(ws.Rows.count, "C").End(xlUp).Row, ws.Cells(ws.Rows.count, "Z").End(xlUp).Row)
+    
+    ' Y sütununun ikinci hücresinde "Palet" olup olmadığını kontrol et
+    If ws.Cells(2, colY).value <> "Palet" Then
+    
+        ' Kullanıcıdan üç ekstra dosya seçmesini iste
+        extraFile1 = Application.GetOpenFilename("Excel Files (*.xls; *.xlsx), *.xls; *.xlsx", , "Esenyurt Dosyasını Seçin")
+        extraFile2 = Application.GetOpenFilename("Excel Files (*.xls; *.xlsx), *.xls; *.xlsx", , "Alemdağ Dosyasını Seçin")
+        extraFile3 = Application.GetOpenFilename("Excel Files (*.xls; *.xlsx), *.xls; *.xlsx", , "Ankara Dosyasını Seçin")
+    
+        If extraFile1 <> False And extraFile2 <> False And extraFile3 <> False Then
+            ' Aktif sayfayı temizle
+            ws.Cells.Clear
+
+            ' Birinci dosyayı aç ve filtre uygula
+            Set extraWB1 = Workbooks.Open(extraFile1)
+            Set extraWS1 = extraWB1.Sheets(1)
+            With extraWS1
+                ' İlk iki satırı kopyala
+                .Rows("1:2").Copy ws.Range("A1")
+                ' Filtreyi ikinci satırdan itibaren uygula
+                .Range("A2", .Cells(.Rows.count, "BS").End(xlUp)).AutoFilter Field:=6, criteria1:=sagArray, Operator:=xlFilterValues
+                ' Görünür hücreleri kopyala (ilk iki satır hariç)
+                Set filteredRange = .Range("A3:BS" & .Cells(.Rows.count, "B").End(xlUp).Row).SpecialCells(xlCellTypeVisible)
+                If Not filteredRange Is Nothing Then
+                    filteredRange.Copy ws.Range("A3")
+                End If
+                ' Birinci ekstra dosyadaki T ve U sütunundaki formülleri kopyala
+                .Range("T3").Copy
+                ws.Range("T3").PasteSpecial Paste:=xlPasteFormulas
+                .Range("U3").Copy
+                ws.Range("U3").PasteSpecial Paste:=xlPasteFormulas
+            End With
+            extraWB1.Close False
+            lastRow9402 = ws.Cells(ws.Rows.count, "B").End(xlUp).Row
+        
+            ' İkinci dosyayı aç ve filtre uygula
+            Set extraWB2 = Workbooks.Open(extraFile2)
+            Set extraWS2 = extraWB2.Sheets(1)
+            With extraWS2
+                ' Filtreyi ikinci satırdan itibaren uygula
+                .Range("A2", .Cells(.Rows.count, "BS").End(xlUp)).AutoFilter Field:=6, criteria1:=sagArray, Operator:=xlFilterValues
+                ' Görünür hücreleri kopyala (ilk iki satır ve başlık hariç)
+                Set filteredRange = .Range("A3:BS" & .Cells(.Rows.count, "B").End(xlUp).Row).SpecialCells(xlCellTypeVisible)
+                If Not filteredRange Is Nothing Then
+                    filteredRange.Copy ws.Range("A" & lastRow9402 + 1)
+                End If
+                .AutoFilterMode = False
+            End With
+            extraWB2.Close False
+            lastRow9403 = ws.Cells(ws.Rows.count, "B").End(xlUp).Row
+        
+            ' Üçüncü dosyayı aç ve filtre uygula
+            Set extraWB3 = Workbooks.Open(extraFile3)
+            Set extraWS3 = extraWB3.Sheets(1)
+            With extraWS3
+                ' Filtreyi ikinci satırdan itibaren uygula
+                .Range("A2", .Cells(.Rows.count, "BS").End(xlUp)).AutoFilter Field:=6, criteria1:=sagArray, Operator:=xlFilterValues
+                ' Görünür hücreleri kopyala (ilk iki satır ve başlık hariç)
+                Set filteredRange = .Range("A3:BS" & .Cells(.Rows.count, "B").End(xlUp).Row).SpecialCells(xlCellTypeVisible)
+                If Not filteredRange Is Nothing Then
+                    filteredRange.Copy ws.Range("A" & lastRow9403 + 1)
+                End If
+                ' Filtreyi kaldır
+                .AutoFilterMode = False
+            End With
+            extraWB3.Close False
+            lastRow = ws.Cells(ws.Rows.count, "B").End(xlUp).Row
+        
+            ' A sütununa yeni bir sütun ekle
+            ws.Columns("A").Insert Shift:=xlToRight
+            ws.Cells(2, "A").value = "Depo"
+            ws.Cells(1, "D").value = "SİPARİŞ"
+        
+            ' Aktif dosya için "9402" değerini A sütununa yaz
+            For i = 3 To lastRow9402
+                ws.Cells(i, "A").value = "9402"
+            Next i
+        
+            ' Birinci ekstra dosya için "9403" değerini A sütununa yaz
+            For i = lastRow9402 + 1 To lastRow9403
+                ws.Cells(i, "A").value = "9403"
+            Next i
+        
+            ' İkinci ekstra dosya için "9404" değerini A sütununa yaz
+            For i = lastRow9403 + 1 To lastRow
+                ws.Cells(i, "A").value = "9404"
+            Next i
+        
+            colAdded1 = True
+        End If
+    
+        ' X sütununun sağına yeni bir sütun ekle
+        ws.Columns(colY).Insert Shift:=xlToRight
+        ' Yeni eklenen sütunun ikinci hücresine "Palet" yaz
+        ws.Cells(2, colY).value = "Palet"
+        colAdded2 = True
+        
+        ' W3 hücresine formül ekle
+        ws.Cells(3, "W").Formula = "=Y" & 3 & "*Z" & 3
+        
+        ' V3 - W3 hücrelerindeki formülleri dördüncü satırdan itibaren kopyala
+        ws.Range("U3:W3").Copy
+        ws.Range("U4:W" & lastRow).PasteSpecial Paste:=xlPasteFormulas
+        
+        ' Sütun genişliklerini ayarla
+        ws.Columns("A").ColumnWidth = 6
+        ws.Columns("C").ColumnWidth = 12
+        ws.Columns("D").ColumnWidth = 30
+        ws.Columns("E").ColumnWidth = 9
+        ws.Columns("F").ColumnWidth = 34
+        ws.Columns("G").ColumnWidth = 5
+        ws.Columns("H").ColumnWidth = 5
+        ws.Columns("I").ColumnWidth = 9
+        ws.Columns("J").ColumnWidth = 9.5
+        ws.Columns("K").ColumnWidth = 7.5
+        ws.Columns("L").ColumnWidth = 7.5
+        ws.Columns("M").ColumnWidth = 7.5
+        ws.Columns("N").ColumnWidth = 7.5
+        ws.Columns("O").ColumnWidth = 7.5
+        ws.Columns("P").ColumnWidth = 4.5
+        ws.Columns("Q").ColumnWidth = 4.5
+        ws.Columns("R").ColumnWidth = 5
+        ws.Columns("S").ColumnWidth = 7
+        ws.Columns("T").ColumnWidth = 8
+        ws.Columns("U").ColumnWidth = 7.5
+        ws.Columns("V").ColumnWidth = 8
+        ws.Columns("W").ColumnWidth = 10
+        ws.Columns("Y").ColumnWidth = 6
+        ws.Columns("Z").ColumnWidth = 6
+        ws.Columns("AA").ColumnWidth = 9
+        ws.Columns("AB").ColumnWidth = 9
+        ws.Columns("AC").ColumnWidth = 9
+        ws.Columns("AD").ColumnWidth = 5
+        ws.Columns("AF").ColumnWidth = 7
+        ws.Columns("AG").ColumnWidth = 12
+        ws.Columns("AH").ColumnWidth = 4
+        ws.Columns("AI").ColumnWidth = 4
+        ws.Columns("AJ").ColumnWidth = 4
+        ws.Columns("AN").ColumnWidth = 4
+        
+        Exit Sub
+    End If
+
+    ' Belirtilen sütunları gizle
+    ws.Columns("B:B").Hidden = True
+    ws.Columns("X:X").Hidden = True
+    ws.Columns("AE:AE").Hidden = True
+    ws.Columns("AK:AM").Hidden = True
+    ws.Columns("AO:BA").Hidden = True
+    ws.Columns("BE:BE").Hidden = True
+    ws.Columns("BI:BY").Hidden = True
+    
+    ' AutoFilter uygula
+    With ws
+        .AutoFilterMode = False
+        
+        ' Filtre uygulanacak aralığı tanımla
+        Dim filterRange As Range
+        Set filterRange = ws.Range("A2:BH" & lastRow)
+        
+        ' AI sütununda boş hücreleri filtrele (tüm sayfadaki 35. sütun)
+        filterRange.AutoFilter Field:=35, criteria1:="="
+        
+        ' G sütununu filtrele (7. sütun)
+        filterRange.AutoFilter Field:=7, criteria1:=filterSagArray, Operator:=xlFilterValues
+    End With
+
+    ' D sütununu küçükten büyüğe sırala
+    ws.Sort.SortFields.Clear
+    ws.Sort.SortFields.Add key:=Range("E2:E" & lastRow), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+    With ws.Sort
+        .SetRange ws.Range("A2:BH" & lastRow)
+        .Header = xlYes
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+    
+    ' A sütununu küçükten büyüğe sırala
+    ws.Sort.SortFields.Clear
+    ws.Sort.SortFields.Add key:=Range("A2:A" & lastRow), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+    With ws.Sort
+        .SetRange ws.Range("A2:BH" & lastRow)
+        .Header = xlYes
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+    
+End Sub
