@@ -1,0 +1,396 @@
+Sub DagılımMakrosuOto()
+    Dim ws As Worksheet
+    Dim depoName As Double
+    Dim productNumber As Double
+    Dim koliMiktari As Double
+    Dim minDagilacak As Double
+    Dim maxDagilacak As Double
+    Dim countBox As Double
+    Dim saleDay As String
+    Dim koliTuru As String
+    Dim sagValue As String
+    Dim filePath As Variant
+    Dim wbSource As Workbook
+    Dim wsSource As Worksheet
+    Dim wsOto As Worksheet
+    Dim lastRow As Long
+    Dim errorCount As Long
+    Dim cell As Range
+    Dim destLastRow As Long
+    Dim lastOtoRow As Long
+    Dim lastFilterRow As Long
+    Dim lastZeroRow As Long
+    Dim i As Long
+    Dim j As Long
+    Dim filterDate As String
+    Dim todayDate As String
+    Dim currentTime As String
+    Dim oldFilePath As String
+    Dim newFilePath As String
+
+    ' Aktif sayfayı ayarla
+    Set ws = ActiveSheet
+    
+    ' Bugünün tarihini dd.mm.yyyy formatında al
+    todayDate = Format(Date, "dd.mm.yyyy")
+    currentTime = Format(Time, "hh.mm")
+    
+    ' Kaynak sayfa "Oto" olarak ayarla
+    Set wsOto = Worksheets("Oto")
+        
+    ' Oto sayfasındaki son satırı bul
+    lastOtoRow = wsOto.Cells(wsOto.Rows.Count, "A").End(xlUp).Row
+    
+    ' Oto sayfasındaki her satırı döngüyle işle
+    For i = 2 To lastOtoRow
+        ' Oto sayfasından değerleri oku
+        productNumber = wsOto.Cells(i, "A").Value
+        koliMiktari = wsOto.Cells(i, "B").Value
+        minDagilacak = wsOto.Cells(i, "C").Value
+        maxDagilacak = wsOto.Cells(i, "D").Value
+        depoName = wsOto.Cells(i, "E").Value
+        koliTuru = wsOto.Cells(i, "F").Value
+        saleDay = wsOto.Cells(i, "G").Value
+        filterOption = IIf(wsOto.Cells(i, "H").Value = "Evet", vbYes, vbNo)
+        dateOption = IIf(wsOto.Cells(i, "I").Value = "Evet", vbYes, vbNo)
+        ciroOption = IIf(wsOto.Cells(i, "J").Value = "Evet", vbYes, vbNo)
+        sagValue = wsOto.Cells(i, "K").Value
+        
+        ' Başlık ve ikinci satır hariç tüm satırları sil
+        ws.Rows("3:" & ws.Rows.Count).Delete
+        
+        ' Ürün numarasını ve satış gününü yaz
+        ws.Range("B2").Value = productNumber
+        ws.Range("C2").Formula = "=A2&B2"
+        ws.Range("D2").Formula = "=IFERROR(VLOOKUP(C:C,Stok!A:B,2,0),0)"
+        ws.Range("E2").Formula = "=IFERROR(VLOOKUP(C:C,Yol!A:B,2,0)/I2,0)"
+        ws.Range("F2").Value = saleDay
+        ws.Range("G2").Formula = "=IFERROR(VLOOKUP(C:C,Satış!A:B,2,0)/I2,0)"
+        ws.Range("H2").Formula = "=E2+D2"
+        ws.Range("I2").Formula = "=VLOOKUP(B:B,'Koli içi'!A:B,2,0)"
+        ws.Range("J2").Formula = "=G2/F2"
+        ws.Range("K2").Formula = "=N2/J2"
+        ws.Range("L2").Value = 0
+        ws.Range("M2").Value = "KOL"
+        ws.Range("N2").Formula = "=H2+L2"
+        ws.Range("O2").Formula = "=VLOOKUP(A:A,Donuk!B:L,11,0)"
+        ws.Range("P2").Formula = "=VLOOKUP(A:A,Donuk!B:K,10,0)"
+        ws.Range("Q2").Formula = "=VLOOKUP(A:A,Donuk!B:M,12,0)"
+        ws.Range("R2").Formula = IIf(sagValue = "F05", "=IFERROR(VLOOKUP(A:A,Donuk!B:P,15,0),0)", "=IFERROR(VLOOKUP(A:A,Donuk!B:O,14,0),0)")
+        ws.Range("T2").Formula = "=SUM(L:L)"
+        ws.Range("T1").Value = "Toplam Koli"
+        ws.Range("U2").Value = koliMiktari
+        countBox = 0
+        
+        ' Kaynak sayfayı "Donuk" olarak ayarla
+        Set wsSource = ThisWorkbook.Sheets("Donuk")
+        
+        ' Depo adına göre sütun A'yı filtrele
+        wsSource.Range("A1").AutoFilter Field:=1, Criteria1:=depoName
+        
+        ' Kullanıcının seçimine göre ek filtre uygula
+        If filterOption = vbYes Then
+            wsSource.Range("A1").AutoFilter Field:=14, Criteria1:="X"
+        End If
+        
+        If dateOption = vbNo Then
+            ' K sütununu küçükten büyüğe sırala
+            lastFilterRow = wsSource.Cells(wsSource.Rows.Count, "B").End(xlUp).Row
+            Call sortRange(wsSource, "K2:K" & lastFilterRow, "A1:R" & lastFilterRow)
+            
+            ' Filtrelemeden sonra ilk görünür satırı bul
+            On Error Resume Next
+            firstVisibleRow = wsSource.Range("K2:K" & lastFilterRow).SpecialCells(xlCellTypeVisible).Cells(1, 1).Row
+            On Error GoTo 0
+        
+            If firstVisibleRow > 1 Then
+                filterDate = wsSource.Cells(firstVisibleRow, "K").Text
+                wsSource.Range("A1").AutoFilter Field:=11, Criteria1:=filterDate
+            End If
+        End If
+        
+        ' Filtrelemeden sonra son satırı bul
+        lastRow = wsSource.Cells(wsSource.Rows.Count, "B").End(xlUp).Row
+        
+        ' Filtrelenmiş verileri aktif sayfaya kopyala
+        For Each cell In wsSource.Range("B2:B" & lastRow).SpecialCells(xlCellTypeVisible)
+            ws.Range("A" & ws.Cells(ws.Rows.Count, "A").End(xlUp).Row + 1).Value = cell.Value
+        Next cell
+        
+        wsSource.AutoFilterMode = False
+        
+
+        ' Aktif sayfada sütun A'daki son satırı bul
+        destLastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+        
+        ' B'den Q'ya kadar olan sütunları 2. satırdan itibaren kopyala
+        ws.Range("B2:R2").Copy
+        ws.Range("B3:R" & destLastRow).PasteSpecial Paste:=xlPasteAll
+        
+        ws.Range("C2:J" & destLastRow).Copy
+        ws.Range("C2:J" & destLastRow).PasteSpecial Paste:=xlPasteValues
+        
+        ws.Range("O2:R" & destLastRow).Copy
+        ws.Range("O2:R" & destLastRow).PasteSpecial Paste:=xlPasteValues
+        ws.Range("P2:P" & destLastRow).NumberFormat = "dd.mm.yyyy"
+
+        Application.CutCopyMode = False
+        
+        ws.Calculate
+        
+        ' K sütununu küçükten büyüğe sırala
+        Call sortRange(ws, "K2:K" & destLastRow, "A1:R" & destLastRow)
+        
+        errorCount = 0
+        For j = 2 To destLastRow
+            If IsError(ws.Cells(j, "K").Value) Then
+                errorCount = errorCount + 1
+            End If
+        Next j
+        
+        ' Koli miktarını kontrol et ve gerekli düzenlemeleri yap
+        If koliMiktari < (destLastRow - 1) * minDagilacak And minDagilacak > 0 Then
+            While koliMiktari < (destLastRow - 1) * minDagilacak And minDagilacak > 0
+                minDagilacak = minDagilacak - 1
+            Wend
+        End If
+
+        For j = 2 To destLastRow
+            ws.Cells(j, "L").Value = minDagilacak
+            countBox = countBox + minDagilacak
+        Next j
+        
+        ' Maksimum dağıtım için koli ayarlaması
+        While koliMiktari > (destLastRow - errorCount - 1) * maxDagilacak And (destLastRow - errorCount - 1) > 0
+            maxDagilacak = maxDagilacak + 1
+        Wend
+        
+        ' Eğer ciro seçeneği varsa
+        If ciroOption = vbYes Then
+            Dim dagilacakKalan As Double
+            Dim ciroToplamlari As Double
+            Dim remainingBoxes As Double
+            Dim distributedBoxes As Double
+            Dim roundedBox As Double
+            
+            Call sortRange(ws, "R2:R" & destLastRow, "A1:R" & destLastRow)
+            
+            dagilacakKalan = koliMiktari - countBox
+            ciroToplamlari = Application.WorksheetFunction.Sum(ws.Range("R2:R" & destLastRow))
+            remainingBoxes = dagilacakKalan
+
+            ' Koli miktarını hesapla ve dağıt
+            For j = 2 To destLastRow
+                If ciroToplamlari <> 0 Then
+                    distributedBoxes = dagilacakKalan * ws.Cells(j, "R").Value / ciroToplamlari
+                    roundedBox = WorksheetFunction.Round(distributedBoxes, 0)
+                    ws.Cells(j, "L").Value = ws.Cells(j, "L").Value + roundedBox
+                    remainingBoxes = remainingBoxes - roundedBox
+                Else
+                    ws.Cells(j, "L").Value = 0
+                End If
+            Next j
+
+            ' Kalan kutuları dağıt
+            If remainingBoxes < 0 Then
+                Call sortRange(ws, "R2:R" & destLastRow, "A1:R" & destLastRow)
+                
+                For j = destLastRow To 2 Step -1
+                    If remainingBoxes < 0 Then
+                        ws.Cells(j, "L").Value = ws.Cells(j, "L").Value - 1
+                        remainingBoxes = remainingBoxes + 1
+                    End If
+                Next j
+            ElseIf remainingBoxes > 0 Then
+                Call sortRange(ws, "R2:R" & destLastRow, "A1:R" & destLastRow)
+                
+                For j = destLastRow To 2 Step -1
+                    If remainingBoxes > 0 Then
+                        ws.Cells(j, "L").Value = ws.Cells(j, "L").Value + 1
+                        remainingBoxes = remainingBoxes - 1
+                    End If
+                Next j
+            End If
+        Else
+            ' H ve J sütunları 0 ise L sütununa 1 yaz
+            For j = 2 To destLastRow
+                If ws.Cells(j, "H").Value = 0 And ws.Cells(j, "J").Value = 0 And countBox < koliMiktari And minDagilacak = 0 Then
+                    ws.Cells(j, "L").Value = 1
+                    countBox = countBox + 1
+                End If
+            Next j
+        
+            While countBox < koliMiktari
+                While countBox < koliMiktari And ws.Range("K2").Value <= ws.Range("K3").Value
+                    If ws.Range("L2").Value >= maxDagilacak Then
+                        ws.Range("K2").Value = 9999
+                    Else
+                        ws.Range("L2").Value = ws.Range("L2").Value + 1
+                        countBox = countBox + 1
+                    End If
+                Wend
+                Call sortRange(ws, "K2:K" & destLastRow, "A1:R" & destLastRow)
+            Wend
+        
+            ws.Range("K2").Formula = "=N2/J2"
+            ws.Range("K2").Copy
+            ws.Range("K3:K" & destLastRow).PasteSpecial Paste:=xlPasteAll
+        
+            Call sortRange(ws, "K2:K" & destLastRow, "A1:Q" & destLastRow)
+        End If
+        
+        ' Koli türü KG ise ayar yap
+        If koliTuru = "KG" Or koliTuru = "kg" Or koliTuru = "Kg" Then
+            ws.Range("S1").Value = "Toplam KG"
+            For j = 2 To destLastRow
+                ws.Cells(j, "M").Value = "KG"
+                ws.Cells(j, "L").Value = ws.Cells(j, "I").Value * ws.Cells(j, "L").Value
+            Next j
+        End If
+
+        ' Her satırdan sonra DagilimiDisaAktar çalıştır
+        Call DagilimiDisaAktar
+        
+    Next i
+    
+    oldFilePath = "\\9400fs\Ortak\LB\Tedarik_Zinciri\Donuk Operasyonu\DAĞILIM VERİLERİ\Dağılımlar\" & todayDate & " Dağılım" & ".xlsx"
+    newFilePath = "\\9400fs\Ortak\LB\Tedarik_Zinciri\Donuk Operasyonu\DAĞILIM VERİLERİ\Dağılımlar\" & todayDate & " Dağılım - " & currentTime & ".xlsx"
+    
+    Name oldFilePath As newFilePath
+End Sub
+
+Sub sortRange(ws As Worksheet, keyRange As String, sortRange As String)
+    ws.Sort.SortFields.Clear
+    ws.Sort.SortFields.Add Key:=ws.Range(keyRange), _
+        SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+    With ws.Sort
+        .SetRange ws.Range(sortRange)
+        .Header = xlYes
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+End Sub
+
+Sub DagilimiDisaAktar()
+    Dim wsSource As Worksheet
+    Dim wsDest As Worksheet
+    Dim wsDest2 As Worksheet
+    Dim newWorkbook As Workbook
+    Dim destWorkbook As Workbook
+    Dim fileName As String
+    Dim depoName As String
+    Dim todayDate As String
+    Dim destFilePath As String
+    Dim lastRow As Long
+    Dim lastRow2 As Long
+
+    ' Kaynak sayfayı ayarla (aktif sayfa varsayım)
+    Set wsSource = ActiveSheet
+
+    ' Bugünün tarihini dd.mm.yyyy formatında al
+    todayDate = Format(Date, "dd.mm.yyyy")
+
+    ' Kaynak dosyadan B2 ve Q2 hücrelerini al
+    fileName = wsSource.Range("B2").Value
+    depoName = wsSource.Range("Q2").Value
+
+    ' Dosya yolunu oluştur
+    destFilePath = "\\9400fs\Ortak\LB\Tedarik_Zinciri\Donuk Operasyonu\DAĞILIM VERİLERİ\Dağılımlar\" & todayDate & " Dağılım" & ".xlsx"
+
+    ' Dosya zaten varsa kontrol et
+    If Dir(destFilePath) <> "" Then
+        ' Var olan dosyayı aç
+        Set destWorkbook = Workbooks.Open(destFilePath)
+        Set wsDest = destWorkbook.Sheets(1)
+
+        ' A sütununda son dolu satırı bul
+        lastRow = wsDest.Cells(wsDest.Rows.Count, "A").End(xlUp).Row + 1
+
+        ' Verileri kopyala ve yapıştır
+        wsSource.Range("Q2:Q" & wsSource.Cells(wsSource.Rows.Count, "Q").End(xlUp).Row).Copy
+        wsDest.Cells(lastRow, "A").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Range("A2:A" & wsSource.Cells(wsSource.Rows.Count, "A").End(xlUp).Row).Copy
+        wsDest.Cells(lastRow, "B").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Range("B2:B" & wsSource.Cells(wsSource.Rows.Count, "B").End(xlUp).Row).Copy
+        wsDest.Cells(lastRow, "C").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Range("M2:M" & wsSource.Cells(wsSource.Rows.Count, "M").End(xlUp).Row).Copy
+        wsDest.Cells(lastRow, "E").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Range("P2:P" & wsSource.Cells(wsSource.Rows.Count, "P").End(xlUp).Row).Copy
+        wsDest.Cells(lastRow, "G").PasteSpecial Paste:=xlPasteValuesAndNumberFormats
+        
+        wsSource.Range("O2:O" & wsSource.Cells(wsSource.Rows.Count, "O").End(xlUp).Row).Copy
+        wsDest.Cells(lastRow, "H").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Range("L2:L" & wsSource.Cells(wsSource.Rows.Count, "L").End(xlUp).Row).Copy
+        wsDest.Cells(lastRow, "D").PasteSpecial Paste:=xlPasteValues
+        
+
+        ' Çalışma kitabını kaydet ve kapat
+        destWorkbook.Save
+        destWorkbook.Close
+
+    Else
+        ' Yeni bir dosya oluştur
+        Set newWorkbook = Workbooks.Add
+        Set wsDest = newWorkbook.Sheets(1)
+
+        ' Verileri kopyala ve yapıştır
+        wsSource.Columns("Q").Copy
+        wsDest.Columns("A").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Columns("A").Copy
+        wsDest.Columns("B").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Columns("B").Copy
+        wsDest.Columns("C").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Columns("M").Copy
+        wsDest.Columns("E").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Columns("P").Copy
+        wsDest.Columns("G").PasteSpecial Paste:=xlPasteValuesAndNumberFormats
+        
+        wsSource.Columns("O").Copy
+        wsDest.Columns("H").PasteSpecial Paste:=xlPasteValues
+        
+        wsSource.Columns("L").Copy
+        wsDest.Columns("D").PasteSpecial Paste:=xlPasteValues
+
+        ' Yeni dosyayı kaydet
+        newWorkbook.SaveAs destFilePath
+        newWorkbook.Close
+
+    End If
+    
+    Set wsDest2 = Worksheets("Aktarıldı")
+    lastRow2 = wsDest2.Cells(wsDest2.Rows.Count, "A").End(xlUp).Row + 1
+    
+    ' Tüm sütunları ikinci sayfaya kaydet
+    wsSource.Range("A1:J" & wsSource.Cells(wsSource.Rows.Count, "A").End(xlUp).Row).Copy
+    wsDest2.Cells(lastRow2, "A").PasteSpecial Paste:=xlPasteValues
+    wsDest2.Cells(lastRow2, "A").PasteSpecial Paste:=xlPasteFormats
+        
+    wsSource.Range("K1:N" & wsSource.Cells(wsSource.Rows.Count, "A").End(xlUp).Row).Copy
+    wsDest2.Cells(lastRow2, "K").PasteSpecial Paste:=xlPasteAll
+        
+    wsSource.Range("O1:R" & wsSource.Cells(wsSource.Rows.Count, "A").End(xlUp).Row).Copy
+    wsDest2.Cells(lastRow2, "O").PasteSpecial Paste:=xlPasteValuesAndNumberFormats
+    wsDest2.Cells(lastRow2, "O").PasteSpecial Paste:=xlPasteFormats
+        
+    wsSource.Range("U1:U2").Copy
+    wsDest2.Cells(lastRow2, "S").PasteSpecial Paste:=xlPasteValues
+    wsDest2.Cells(lastRow2, "S").PasteSpecial Paste:=xlPasteFormats
+
+
+
+    ' Panoyu temizle
+    Application.CutCopyMode = False
+
+
+End Sub
