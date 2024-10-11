@@ -63,3 +63,111 @@ Set OutApp = Nothing
 
 
 End Sub
+
+Sub CopyColumnsFromSelectedFile()
+
+    Dim SourceWorkbook As Workbook
+    Dim DestinationWorkbook As Workbook
+    Dim SourceWorksheet As Worksheet
+    Dim DestinationWorksheet As Worksheet
+    Dim SourceFilePath As String
+    Dim SourceLastRow As Long
+    Dim DestinationRowIndex As Long
+    Dim UniqueValues As Object
+    Dim Cell As Range
+    Dim Value As Variant
+    Dim TempArray() As Variant
+    Dim Threshold As Double
+   
+    ' Kullanıcıya kaynak dosyayı seçtir
+    SourceFilePath = Application.GetOpenFilename("Excel Files (*.xlsx), *.xlsx", , "Select the source file")
+   
+    ' Eğer kullanıcı dosya seçimini iptal ederse
+    If SourceFilePath = "False" Then
+        MsgBox "No file selected. Operation cancelled.", vbExclamation
+        Exit Sub
+    End If
+   
+    ' Kaynak dosyayı aç
+    Set SourceWorkbook = Workbooks.Open(SourceFilePath)
+    Set SourceWorksheet = SourceWorkbook.Sheets(1) ' Gerekirse sayfa indeksini değiştir
+   
+    ' Hedef çalışma kitabını ve sayfasını ayarla (bu kod hedef kitapta yer alıyor varsayımıyla)
+    Set DestinationWorkbook = ThisWorkbook
+    Set DestinationWorksheet = DestinationWorkbook.Sheets(1) ' Gerekirse sayfa indeksini değiştir
+   
+    ' Kaynak sayfadaki son satırı bul
+    SourceLastRow = SourceWorksheet.Cells(SourceWorksheet.Rows.Count, 1).End(xlUp).Row
+   
+    ' Hedef sayfada 1. satırdan başla
+    DestinationRowIndex = 1
+   
+    ' Hedef sayfadaki A'dan K'ya ve Q sütunlarını temizle
+    DestinationWorksheet.Range("A:K").ClearContents
+    DestinationWorksheet.Range("Q:Q").ClearContents
+   
+    ' Kaynak sayfadan A sütununu hedef sayfanın A sütununa kopyala
+    SourceWorksheet.Range("A1:A" & SourceLastRow).Copy Destination:=DestinationWorksheet.Range("A" & DestinationRowIndex)
+    SourceWorksheet.Range("N1:O" & SourceLastRow).Copy Destination:=DestinationWorksheet.Range("B" & DestinationRowIndex)
+    SourceWorksheet.Range("B1:C" & SourceLastRow).Copy Destination:=DestinationWorksheet.Range("D" & DestinationRowIndex)
+    SourceWorksheet.Range("E1:H" & SourceLastRow).Copy Destination:=DestinationWorksheet.Range("F" & DestinationRowIndex)
+    SourceWorksheet.Range("L1:M" & SourceLastRow).Copy Destination:=DestinationWorksheet.Range("J" & DestinationRowIndex)
+   
+    ' İkinci satırdaki R-V sütunlarındaki formülleri geçici bir diziye kaydet
+    TempArray = DestinationWorksheet.Range("R2:V2").Formula
+   
+    ' Kullanıcıdan bir eşik değeri al
+    Threshold = Application.InputBox("Silmek istediginiz bakiye miktarını giriniz (Örnek: 20 girerseniz 20 koli/kg ve asagısını siler):", "Threshold Value", Type:=1)
+   
+    ' Eğer kullanıcı bir eşik değeri girmezse işlemi iptal et
+    If Threshold = False Then
+        MsgBox "No threshold value entered. Operation cancelled.", vbExclamation
+        Exit Sub
+    End If
+   
+    ' Hedef sayfada J sütunundaki değeri eşikten küçük olan satırları sil
+    Dim i As Long
+    For i = DestinationWorksheet.Cells(DestinationWorksheet.Rows.Count, "A").End(xlUp).Row To 2 Step -1
+        If DestinationWorksheet.Cells(i, "J").Value < Threshold Then
+            DestinationWorksheet.Rows(i).Delete
+        End If
+    Next i
+   
+    ' Benzersiz değerleri depolamak için sözlük oluştur
+    Set UniqueValues = CreateObject("Scripting.Dictionary")
+   
+    ' Kaynak sayfada B sütunundaki benzersiz değerleri sözlüğe ekle
+    For Each Cell In DestinationWorksheet.Range("B1:B" & SourceLastRow)
+        Value = Cell.Value
+        If Not UniqueValues.exists(Value) And Application.WorksheetFunction.CountIf(DestinationWorksheet.Range("Q:Q"), Value) = 0 Then
+            UniqueValues.Add Value, Nothing
+        End If
+    Next Cell
+   
+    ' Sözlükteki benzersiz değerleri hedef sayfadaki Q sütununa kopyala
+    DestinationWorksheet.Range("Q1").Resize(UniqueValues.Count, 1).Value = Application.Transpose(UniqueValues.Keys)
+   
+    ' R-V sütunlarını 3. satırdan itibaren temizle
+    Dim ClearRange As Range
+    Set ClearRange = DestinationWorksheet.Range("R3:V" & DestinationWorksheet.Rows.Count)
+    ClearRange.ClearContents
+   
+    ' Kopyalanan ikinci satır formüllerini Q sütunundaki her benzersiz değer için uygula
+    Dim QLastRow As Long
+    QLastRow = DestinationWorksheet.Cells(DestinationWorksheet.Rows.Count, "Q").End(xlUp).Row
+    Dim DestLastRow As Long
+    Dim DestRange As Range
+   
+    For Each Cell In DestinationWorksheet.Range("Q2:Q" & QLastRow)
+        DestLastRow = DestinationWorksheet.Cells(DestinationWorksheet.Rows.Count, "R").End(xlUp).Row
+        Set DestRange = DestinationWorksheet.Range("R" & DestLastRow + 1 & ":V" & DestLastRow + 1)
+       
+        ' Geçici dizideki formülleri hedef aralığa yapıştır
+        DestRange.Formula = TempArray
+    Next Cell
+   
+    ' Kaynak dosyayı kapat
+    SourceWorkbook.Close SaveChanges:=False
+   
+End Sub
+
